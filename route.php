@@ -35,12 +35,23 @@ class Route
     /**
      * @var string
      */
+    public $subaction2 = '';
+    
+    /**
+     * @var string
+     */
     public $method = 'GET';
 
     /**
      * @var string
      */
     public $format = 'html';
+
+
+    /**
+     * @var bool
+     */
+    public $is_ajax = false;
 
     /**
      * @param string $q
@@ -50,6 +61,8 @@ class Route
     public function __construct($q, $documentRoot, $requestMethod)
     {
         $this->decode($q, $documentRoot, $requestMethod);
+        //this can be faked by the client. not to be trusted.
+        $this->is_ajax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
     }
 
     /**
@@ -108,8 +121,11 @@ class Route
         if (count($args) > 2) {
             $this->subaction = $args[2];
         }
-
-        if (in_array($requestMethod, ['POST', 'DELETE', 'PUT'])) {
+        if (count($args) > 3) {
+            $this->subaction2 = $args[3];
+        }
+        
+        if (in_array($requestMethod, array('POST', 'DELETE', 'PUT'))) {
             $this->method = $requestMethod;
         }
     }

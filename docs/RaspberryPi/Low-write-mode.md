@@ -1,4 +1,4 @@
-##Enabling Low-write mode
+## Enabling Low-write mode
 Due to the number of writes that the full version of emoncms makes, the lifespan of an SD card will almost certainly be shortened, and it is therefore recommended that you eventually move the operating system partition (root) to an USB HDD or to lower the write frequency to the SD card by using the low-write mode.
 
 As a general guide;
@@ -6,7 +6,7 @@ As a general guide;
 * This guide will reduce the average amount of data written to approximately 100Bytes per second or less.
 * A further optional stage to protect the SD card is making the filesystem read-only. This is the best option when emoncms is deployed in a location where the electricity supply regularly fails or is interrupted (Guide to follow).
 
-####Preparation
+#### Preparation
 
 Before following this guide;
 
@@ -18,7 +18,7 @@ Update emoncms to current version:
 
     cd /var/www/emoncms && git pull
 
-####Changes to filesystem
+#### Changes to filesystem
 
     sudo nano /etc/fstab
 
@@ -63,12 +63,15 @@ then reboot.
 
 #### Move PHP sessions to tmpfs (RAM)
 
-Edit the php config file to direct php5 sessions to tmpfs (RAM):
+Edit the php config file to direct php sessions to tmpfs (RAM):  
+*(**Raspbian Stretch** requires php7*)
 
-`sudo nano /etc/php5/apache2/php.ini`
+`sudo nano /etc/php/7.0/apache2/php.ini` **PHP7**  
+`sudo nano /etc/php5/apache2/php.ini` **PHP5**
 
+Find the line - `; session.save_path = "/var/lib/php/sessions"` and replace it with - `session.save_path = "/tmp"` **(Raspbian Stretch)** OR  
 Find the line - `; session.save_path = "/var/lib/php5/sessions"` and replace it with - `session.save_path = "/tmp"` **(Raspbian Jessie)** OR  
-Find the line - `; session.save_path = "/var/lib/php5"` and replace it with - `session.save_path = "/tmp"` **(Raspbian Wheezy)**
+Find the line - `; session.save_path = "/var/lib/php5"` and replace it with - `session.save_path = "/tmp"` **(Raspbian Wheezy)**  
 
 Save & exit.
 
@@ -100,7 +103,7 @@ Create a symlink to run feedwriter as a daemon and set permissions:
     sudo chmod 755 /var/www/emoncms/scripts/feedwriter
     sudo update-rc.d feedwriter defaults
 
-####Enable Low-write mode in emoncms
+#### Enable Low-write mode in emoncms
 
     nano /var/www/emoncms/settings.php
 

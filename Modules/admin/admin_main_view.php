@@ -1,5 +1,3 @@
-
-
 <?php global $path, $emoncms_version, $allow_emonpi_admin, $log_enabled, $log_filename, $mysqli, $redis_enabled, $redis, $mqtt_enabled, $feed_settings, $shutdownPi;
 
   // Retrieve server information
@@ -12,7 +10,7 @@
 
     @list($system, $host, $kernel) = preg_split('/[\s,]+/', php_uname('a'), 5);
     @exec('ps ax | grep feedwriter.php | grep -v grep', $feedwriterproc);
-    
+
     $meminfo = false;
     if (@is_readable('/proc/meminfo')) {
       $data = explode("\n", file_get_contents("/proc/meminfo"));
@@ -26,9 +24,20 @@
     }
     $emoncms_modules = "";
     $emoncmsModulesPath = substr($_SERVER['SCRIPT_FILENAME'], 0, strrpos($_SERVER['SCRIPT_FILENAME'], '/')).'/Modules';  // Set the Modules path
-    $emoncmsModuleFolders = glob("$emoncmsModulesPath/*", GLOB_ONLYDIR);  // Use glob to get all the folder names only
-    foreach($emoncmsModuleFolders as $emoncmsModuleFolder) {  // loop through the folders
-        if ($emoncms_modules != "")  $emoncms_modules .= "&nbsp;&nbsp;&nbsp;";
+    $emoncmsModuleFolders = glob("$emoncmsModulesPath/*", GLOB_ONLYDIR);                // Use glob to get all the folder names only
+    foreach($emoncmsModuleFolders as $emoncmsModuleFolder) {                            // loop through the folders
+        if ($emoncms_modules != "")  $emoncms_modules .= "&nbsp;|&nbsp;";
+        if (file_exists($emoncmsModuleFolder."/module.json")) {                         // JSON Version informatmion exists
+          $json = json_decode(file_get_contents($emoncmsModuleFolder."/module.json"));  // Get JSON version information
+          $jsonAppName = $json->{'name'};
+          $jsonVersion = $json->{'version'};
+          if ($jsonAppName) {
+            $emoncmsModuleFolder = $jsonAppName;
+          }
+          if ($jsonVersion) {
+            $emoncmsModuleFolder = $emoncmsModuleFolder." v".$jsonVersion;
+          }
+        }
         $emoncms_modules .=  str_replace($emoncmsModulesPath."/", '', $emoncmsModuleFolder);
     }
 
@@ -43,7 +52,7 @@
                  'zend' => (function_exists('zend_version') ? zend_version() : 'n/a'),
                  'db_server' => $server,
                  'db_ip' => gethostbyname($server),
-                 'db_version' => 'MySQL ' . $mysqli->server_info,
+                 'db_version' => $mysqli->server_info,
                  'db_stat' => $mysqli->stat(),
                  'db_date' => $db['datetime'] . " (UTC " . $db['timezone'] . ")",
 
@@ -77,19 +86,12 @@
       $shutdownPi = htmlspecialchars(stripslashes(trim($_POST['shutdownPi'])));
   }
   if (isset($shutdownPi)) { if ($shutdownPi == 'reboot') { shell_exec('sudo shutdown -r now 2>&1'); } elseif ($shutdownPi == 'halt') { shell_exec('sudo shutdown -h now 2>&1'); } }
-  
-  //Shutdown Command Check
-  function chkRebootBtn(){
-    $chkReboot = shell_exec('sudo shutdown -k --no-wall 2>&1'); //Try and run a fake shutdown
-    if (stripos($chkReboot, "scheduled ") > 0) {
-      shell_exec('sudo shutdown -c --no-wall'); //Cancel the fake shutdown
+
+  //Shutdown button
+  function RebootBtn(){
       return "<button id=\"haltPi\" class=\"btn btn-danger btn-small pull-right\">"._('Shutdown')."</button><button id=\"rebootPi\" class=\"btn btn-warning btn-small pull-right\">"._('Reboot')."</button>";
-    }
-    else {
-      return "<button id=\"noshut\" class=\"btn btn-info btn-small pull-right\">"._('Shutdown Unsupported')."</button>";
-    }
   }
-  
+
   function disk_list()
   {
       $partitions = array();
@@ -106,7 +108,7 @@
           $column = trim($column);
           if($column != '') $columns[] = $column;
         }
-    
+
         // Only process 6 column rows
         // (This has the bonus of ignoring the first row which is 7)
         if(count($columns) == 6)
@@ -132,7 +134,7 @@
       }
       return $partitions;
   }
- 
+
  ?>
 <style>
 pre {
@@ -158,7 +160,6 @@ pre {
 table tr td.buttons { text-align: right;}
 table tr td.subinfo { border-color:transparent;}
 </style>
-
 <h2><?php echo _('Administration'); ?></h2>
 <table class="table table-hover">
     <tr>
@@ -191,7 +192,7 @@ if ($log_enabled) {
                     <p>
 <?php
 if(is_writable($log_filename)) {
-                    echo "View last entries on the logfile: ".$log_filename;
+                    echo _('View last entries on the logfile:').$log_filename;
 } else {
                     echo '<div class="alert alert-warn">';
                     echo "The log file has no write permissions or does not exists. To fix, log-on on shell and do:<br><pre>touch $log_filename<br>chmod 666 $log_filename</pre>";
@@ -204,6 +205,7 @@ if(is_writable($log_filename)) {
                     <br>
                     <button id="getlog" type="button" class="btn btn-info" data-toggle="button" aria-pressed="false" autocomplete="off"><?php echo _('Auto refresh'); ?></button>
                     <a href="<?php echo $path; ?>admin/downloadlog" class="btn btn-info"><?php echo _('Download Log'); ?></a>
+                    <button class="btn btn-info" id="copylogfile" type="button"><?php echo _('Copy to clipboard'); ?></button>
 <?php } ?>
                 </td>
             </tr>
@@ -224,8 +226,8 @@ if ($allow_emonpi_admin) {
             <tr>
                 <td style="border-top: 0px">
                     <h3><?php echo _('Update'); ?></h3>
-                    <p><b>emonPi Update:</b> updates emonPi firmware & Emoncms</p>
-                    <p><b>emonBase Update:</b> updates emonBase (RFM69Pi firmware) & Emoncms</p>
+                    <p><b>emonPi Update:</b> updates emonPi firmware &amp; Emoncms</p>
+                    <p><b>emonBase Update:</b> updates emonBase (RFM69Pi firmware) &amp; Emoncms</p>
                     <p><b>Change Logs:</b> <a href="https://github.com/emoncms/emoncms/releases"> Emoncms</a> | <a href="https://github.com/openenergymonitor/emonpi/releases">emonPi</a> | <a href="https://github.com/openenergymonitor/RFM2Pi/releases">RFM69Pi</a></p>
                     <p><i>Caution: ensure RFM69Pi is populated with RFM69CW module not RFM12B before running RFM69Pi update: <a href="https://learn.openenergymonitor.org/electricity-monitoring/networking/which-radio-module">Identifying different RF Modules</a>.</i></p>
                 </td>
@@ -247,9 +249,12 @@ if ($allow_emonpi_admin) {
 
     <tr colspan=2>
         <td colspan=2>
-            <h3><?php echo _('Server Information'); ?></h3>
-            <table class="table table-hover table-condensed">
-              <tr><td><b>Emoncms</b></td><td><?php echo _('Version'); ?></td><td><?php echo $emoncms_version; ?></td></tr>
+            <div>
+             <div style="float:left;"><h3><?php echo _('Server Information'); ?></h3></div>
+             <div style="float:right;"><h3></h3><button class="btn btn-info" id="copyserverinfo" type="button"><?php echo _('Copy to clipboard'); ?></button></div>
+            </div>
+            <table class="table table-hover table-condensed" id="serverinformationtabular">
+              <tr><td><b>Emoncms</b></td><td>Version</td><td><?php echo $emoncms_version; ?></td></tr>
               <tr><td class="subinfo"></td><td>Modules</td><td><?php echo $system['emoncms_modules']; ?></td></tr>
 <?php
 if ($feed_settings['redisbuffer']['enabled']) {
@@ -266,7 +271,7 @@ if ($feed_settings['redisbuffer']['enabled']) {
 
               <tr><td><b>HTTP</b></td><td>Server</td><td colspan="2"><?php echo $system['http_server'] . " " . $system['http_proto'] . " " . $system['http_mode'] . " " . $system['http_port']; ?></td></tr>
 
-              <tr><td><b>Database</b></td><td>Version</td><td><?php echo $system['db_version']; ?></td></tr>
+              <tr><td><b>MySQL</b></td><td>Version</td><td><?php echo $system['db_version']; ?></td></tr>
               <tr><td class="subinfo"></td><td>Host</td><td><?php echo $system['db_server'] . ' (' . $system['db_ip'] . ')'; ?></td></tr>
               <tr><td class="subinfo"></td><td>Date</td><td><?php echo $system['db_date']; ?></td></tr>
               <tr><td class="subinfo"></td><td>Stats</td><td><?php echo $system['db_stat']; ?></td></tr>
@@ -281,31 +286,98 @@ if ($redis_enabled) {
 }
 if ($mqtt_enabled) {
 ?>
-              <tr><td><b>MQTT</b></td><td>Version</td><td><?php if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') { echo "n/a"; } else { if (file_exists('/usr/sbin/mosquitto')) { echo exec('/usr/sbin/mosquitto -h | grep -oP \'(?<=mosquitto\sversion\s)[0-9.]+(?=\s*\(build)\''); } } ?></td></tr>
+              <tr><td><b>MQTT</b></td><td>Version</td><td><?php if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') { echo "n/a"; } else { if (file_exists('/usr/sbin/mosquitto')) { echo exec('/usr/sbin/mosquitto -h | grep -oP \'(?<=mosquitto\sversion\s)[0-9.]+(?=\s*)\''); } } ?></td></tr>
               <tr><td class="subinfo"></td><td>Host</td><td><?php echo $system['mqtt_server']. ":" . $system['mqtt_port'] . ' (' . $system['mqtt_ip'] . ')'; ?></td></tr>
 <?php
 }
 
 // Raspberry Pi
 if ( @exec('ifconfig | grep b8:27:eb:') ) {
-              echo "<tr><td><b>Pi</b></td><td>CPU Temp</td><td>".number_format((int)@exec('cat /sys/class/thermal/thermal_zone0/temp')/1000, '2', '.', '')."&degC".chkRebootBtn()."</td></tr>\n";
+
+    $rpi_info = array();
+    $rpi_info['model'] = "Unknown";
+    if (@is_readable('/proc/cpuinfo')) {
+      //load model information
+      $rpi_revision = array();
+      if (@is_readable(__DIR__."/pi-model.json")) { 
+        $rpi_revision = json_decode(file_get_contents(__DIR__."/pi-model.json"), true);  
+        foreach ($rpi_revision as $k => $rev) {
+          if(empty($rev['Code'])) continue;
+          $rpi_revision[$rev['Code']] = $rev;
+          unset($rpi_revision[$k]);
+        }
+      }
+      //get cpu info
+      preg_match_all('/^(revision|serial|hardware)\\s*: (.*)/mi', file_get_contents("/proc/cpuinfo"), $matches);
+      $rpi_info['hw'] = "Broadcom ".$matches[2][0];
+      $rpi_info['rev'] = $matches[2][1];
+      $rpi_info['sn'] = $matches[2][2];
+      //build model string
+      if(!empty($rpi_revision[$rpi_info['rev']]))  {
+        $model_info = $rpi_revision[$rpi_info['rev']];
+        $rpi_info['model'] = "Raspberry Pi ";
+        $model = $model_info['Model'];
+        if (ctype_digit($model[0])) { //Raspberry Pi >= 2
+           $ver = $model[0];
+           $model = substr($model, 1);
+           $rpi_info['model'] .= $ver." Model ".$model;
+        }
+        else if (substr($model, 0, 2) == 'CM') { // Raspberry Pi Compute Module
+           $rpi_info['model'] .= " Compute Module";
+           if (ctype_digit($model[2]) && $model[2]>1) $rpi_info['model'] .= " ".$model[2]; 
+        }
+        else { //Raspberry Pi
+           $rpi_info['model'] .= " Model ".$model;
+        }
+        $rpi_info['model'] .= " Rev ".$model_info['Revision']." - ".$model_info['RAM']." (".$model_info['Manufacturer'].")";
+      }
+    }
+              echo "<tr><td><b>Pi</b></td><td>Model</td><td>".$rpi_info['model']."</td></tr>\n";
+              if(!empty($rpi_info['hw'])) echo "<tr><td class=\"subinfo\"></td><td>SoC</td><td>".$rpi_info['hw']."</td></tr>\n";
+              if(!empty($rpi_info['sn'])) echo "<tr><td class=\"subinfo\"></td><td>Serial num.</td><td>".strtoupper(ltrim($rpi_info['sn'], '0'))."</td></tr>\n";
+              $cputmp = number_format((int)@exec('cat /sys/class/thermal/thermal_zone0/temp')/1000, '2', '.', '')."&degC";
+              $gputmp = @exec('/opt/vc/bin/vcgencmd measure_temp');
+              if(strpos($gputmp, 'temp=' ) !== false ){
+                $gputmp = " - GPU: ".str_replace("temp=","", $gputmp);
+              }
+              else $gputmp = " - GPU: N/A"." (to show GPU temp execute this command from the console \"sudo usermod -G video www-data\" )";
+               echo "<tr><td class=\"subinfo\"></td><td>Temperature</td><td>CPU: ".$cputmp.$gputmp.RebootBtn()."</td></tr>\n";
+    if (glob('/boot/emonSD-*')) {
               foreach (glob("/boot/emonSD-*") as $emonpiRelease) {
                 $emonpiRelease = str_replace("/boot/", '', $emonpiRelease);
-                echo "<tr><td class=\"subinfo\"></td><td>Release</td><td>".$emonpiRelease."</td></tr>\n";
               }
+              if (isset($emonpiRelease)) {
+                 $currentfs = "<b>read-only</b>"; 
+                 $btnactionfs = "<button id=\"fs-rw\" class=\"btn btn-danger btn-small pull-right\">"._('Read-Write')."</button>";
+                 exec('mount', $resexec);
+                 $matches = null;
+                 preg_match('/^\/dev\/mmcblk0p2 on \/ .*(\(rw).*/mi', implode("\n",$resexec), $matches);
+                 if (!empty($matches)) {
+                     $currentfs = "<b>read-write</b>"; 
+                     $btnactionfs = "<button id=\"fs-ro\" class=\"btn btn-info btn-small pull-right\">"._('Read-Only')."</button>";
+                 } 
+                 echo "<tr><td class=\"subinfo\"></td><td>Release</td><td>".$emonpiRelease."</td></tr>\n";
+                 echo "<tr><td class=\"subinfo\"></td><td>File-system</td><td>Current: ".$currentfs." - Set root file-system temporarily to read-write, (default read-only) ".$btnactionfs."</td></tr>\n";
+               }
+      
+      }
 }
 
 // Ram information
 if ($system['mem_info']) {
               $sysRamUsed = $system['mem_info']['MemTotal'] - $system['mem_info']['MemFree'] - $system['mem_info']['Buffers'] - $system['mem_info']['Cached'];
-              $sysRamPercent = sprintf('%.2f',($sysRamUsed / $system['mem_info']['MemTotal']) * 100);
-              echo "<tr><td><b>Memory</b></td><td>RAM</td><td><div class='progress progress-info' style='margin-bottom: 0;'><div class='bar' style='width: ".$sysRamPercent."%;'>Used&nbsp;".$sysRamPercent."%</div></div>";
+              $sysRamPercentRaw = ($sysRamUsed / $system['mem_info']['MemTotal']) * 100;
+              $sysRamPercent = sprintf('%.2f',$sysRamPercentRaw);
+              $sysRamPercentTable = number_format(round($sysRamPercentRaw, 2), 2, '.', '');
+              echo "<tr><td><b>Memory</b></td><td>RAM</td><td><div class='progress progress-info' style='margin-bottom: 0;'><div class='bar' style='width: ".$sysRamPercentTable."%;'>Used:&nbsp;".$sysRamPercent."%&nbsp;</div></div>";
               echo "<b>Total:</b> ".formatSize($system['mem_info']['MemTotal'])."<b> Used:</b> ".formatSize($sysRamUsed)."<b> Free:</b> ".formatSize($system['mem_info']['MemTotal'] - $sysRamUsed)."</td></tr>\n";
-              
+
               if ($system['mem_info']['SwapTotal'] > 0) {
                 $sysSwapUsed = $system['mem_info']['SwapTotal'] - $system['mem_info']['SwapFree'];
-                $sysSwapPercent = sprintf('%.2f',($sysSwapUsed / $system['mem_info']['SwapTotal']) * 100);
-                echo "<tr><td class='subinfo'></td><td>Swap</td><td><div class='progress progress-info' style='margin-bottom: 0;'><div class='bar' style='width: ".$sysSwapPercent."%;'>Used&nbsp;".$sysSwapPercent."%</div></div>";
+                $sysSwapPercentRaw = ($sysSwapUsed / $system['mem_info']['SwapTotal']) * 100;
+                $sysSwapPercent = sprintf('%.2f',$sysSwapPercentRaw);
+                $sysSwapPercentTable = number_format(round($sysSwapPercentRaw, 2), 2, '.', '');
+                echo "<tr><td class='subinfo'></td><td>Swap</td><td><div class='progress progress-info' style='margin-bottom: 0;'><div class='bar' style='width: ".$sysSwapPercentTable."%;'>Used:&nbsp;".$sysSwapPercent."%&nbsp;</div></div>";
                 echo "<b>Total:</b> ".formatSize($system['mem_info']['SwapTotal'])."<b> Used:</b> ".formatSize($sysSwapUsed)."<b> Free:</b> ".formatSize($system['mem_info']['SwapFree'])."</td></tr>\n";
               }
 }
@@ -315,30 +387,92 @@ if ($system['mem_info']) {
                     foreach($system['partitions'] as $fs) {
                       if (!$fs['Temporary']['bool'] && $fs['FileSystem']['text']!= "none" && $fs['FileSystem']['text']!= "udev") {
                         $diskFree = $fs['Free']['value'];
-                        $diskTotal = $fs['Size']['value'];;
-                        $diskUsed = $fs['Used']['value'];;
-                        $diskPercent = sprintf('%.2f',($diskUsed / $diskTotal) * 100);
-                        
-                        echo "<tr><td class='subinfo'></td><td>".$fs['Partition']['text']."</td><td><div class='progress progress-info' style='margin-bottom: 0;'><div class='bar' style='width: ".$diskPercent."%;'>Used&nbsp;".$diskPercent."%</div></div>";
+                        $diskTotal = $fs['Size']['value'];
+                        $diskUsed = $fs['Used']['value'];
+                        $diskPercentRaw = ($diskUsed / $diskTotal) * 100;
+                        $diskPercent = sprintf('%.2f',$diskPercentRaw);
+                        $diskPercentTable = number_format(round($diskPercentRaw, 2), 2, '.', '');
+
+                        echo "<tr><td class='subinfo'></td><td>".$fs['Partition']['text']."</td><td><div class='progress progress-info' style='margin-bottom: 0;'><div class='bar' style='width: ".$diskPercentTable."%;'>Used:&nbsp;".$diskPercent."%&nbsp;</div></div>";
                         echo "<b>Total:</b> ".formatSize($diskTotal)."<b> Used:</b> ".formatSize($diskUsed)."<b> Free:</b> ".formatSize($diskFree)."</td></tr>\n";
-                        
+
                       }
                     }
                 }
 
 ?>
               <tr><td><b>PHP</b></td><td>Version</td><td colspan="2"><?php echo $system['php'] . ' (' . "Zend Version" . ' ' . $system['zend'] . ')'; ?></td></tr>
-              <tr><td class="subinfo"></td><td>Modules</td><td colspan="2"><?php while (list($key, $val) = each($system['php_modules'])) { echo "$val &nbsp; "; } ?></td></tr>
+              <tr><td class="subinfo"></td><td>Modules</td><td colspan="2"><?php 
+              natcasesort($system['php_modules']);// sort case insensitive
+              $modules = [];// empty list
+              foreach($system['php_modules'] as $ver=>$extension){
+                $module_version = phpversion($extension);// returns false if no version information
+                $modules[] = $module_version ? "$extension v$module_version" : $extension; // show version if available
+              }
+              echo implode(' | ', $modules);//isplay list with | separator
+              ?></td></tr>
             </table>
-            
+            <h3><?php echo _('Client Information'); ?></h3>
+            <table class="table table-hover table-condensed">
+              <tr><td><b>HTTP</b></td><td>Browser</td><td colspan="2"><?php echo $_SERVER['HTTP_USER_AGENT']; ?></td></tr>
+              <tr><td><b>Screen</b></td><td>Resolution</td><td colspan="2"><script>document.write(window.screen.width + ' x ' + window.screen.height);</script></td></tr>
+              <tr><td><b>Window</b></td><td>Size</td><td colspan="2"><span id="windowsize"><script>document.write($( window ).width() + " x " + $( window ).height())</script></span></td></tr>
+            </table>
         </td>
     </tr>
 </table>
-
 <script>
+function copyTextToClipboard(text) {
+  var textArea = document.createElement("textarea");
+  textArea.style.position = 'fixed';
+  textArea.style.top = 0;
+  textArea.style.left = 0;
+  textArea.style.width = '2em';
+  textArea.style.height = '2em';
+  textArea.style.padding = 0;
+  textArea.style.border = 'none';
+  textArea.style.outline = 'none';
+  textArea.style.boxShadow = 'none';
+  textArea.style.background = 'transparent';
+  textArea.value = text;
+  document.body.appendChild(textArea);
+  textArea.select();
+  try {
+    var successful = document.execCommand('copy');
+    var msg = successful ? 'successful' : 'unsuccessful';
+    console.log('Copying text command was ' + msg);
+  } 
+  catch(err) {
+    window.prompt("<?php echo _('Copy to clipboard: Ctrl+C, Enter'); ?>", text);
+  }
+  document.body.removeChild(textArea);
+}
+var serverInfoDetails = $('#serverinformationtabular').html().replace(/\|/g,':').replace(/<\/?button.[\s\S]*?button./g,'').replace(/<\/?b>/g,'').replace(/<td>/g,'|').replace(/<\/td>/g,'').replace(/<\/?tbody>/g,'').replace(/<\/?tr>/g,'').replace(/&nbsp;/g,' ').replace(/<td class=\"subinfo\">/g,'|').replace(/\n +/g, '\n').replace(/\n+/g, '\n').replace(/<div [\s\S]*?>/g, '').replace(/<\/div>/g, '').replace(/<td colspan="2">/g, '|');
+
+var clientInfoDetails = '\n|HTTP|Browser|'+'<?php echo $_SERVER['HTTP_USER_AGENT']; ?>'+'\n|Screen|Resolution|'+ window.screen.width + ' x ' + window.screen.height +'\n|Window|Size|' + $(window).width() + ' x ' + $(window).height();
+
+$("#copyserverinfo").on('click', function(event) {
+    if ( event.ctrlKey ) {
+        copyTextToClipboard('Server Information\n' + serverInfoDetails.replace(/\|/g,'\t') + '\nClient Information\n' + clientInfoDetails.replace(/\|/g,'\t'));
+    } else {
+        copyTextToClipboard('<details><summary>Server Information</summary><pre>\n\n'+ '| | | |\n' + '| --- | --- | --- |' +serverInfoDetails + '</pre></details>\n<details><summary>Client Information</summary><pre>\n\n'+ '| | | |\n' + '| --- | --- | --- |' + clientInfoDetails + '\n</pre></details>');
+    }
+} );
+
+var logFileDetails;
+$("#copylogfile").on('click', function(event) {
+    logFileDetails = $("#logreply").text();
+    if ( event.ctrlKey ) {
+        copyTextToClipboard('LAST ENTRIES ON THE LOG FILE\n'+logFileDetails);
+    } else {
+        copyTextToClipboard('<details><summary>LAST ENTRIES ON THE LOG FILE</summary><br />\n'+ logFileDetails.replace(/\n/g,'<br />\n').replace(/API key '[\s\S]*?'/g,'API key \'xxxxxxxxx\'') + '</details><br />\n');
+    }
+} );
+$(window).resize(function() {
+  $("#windowsize").html( $(window).width() + " x " + $(window).height() );
+});
 var path = "<?php echo $path; ?>";
 var logrunning = false;
-
 <?php if ($feed_settings['redisbuffer']['enabled']) { ?>
   getBufferSize();
 <?php } ?>
@@ -438,4 +572,25 @@ $("#rebootPi").click(function() {
 $("#noshut").click(function() {
   alert('Please modify /etc/sudoers to allow your webserver to run the shutdown command.')
 });
+
+$("#fs-rw").click(function() {
+  if(confirm('Setting file-system to Read-Write, remember to restore Read-Only when your done..')) {
+    $.ajax({ type: "POST", url: path+"admin/emonpi/fs", data: "argument=rw", async: true, success: function(result)
+      {
+        // console.log(data);
+      }
+    });
+  }
+});
+
+$("#fs-ro").click(function() {
+  if(confirm('Settings filesystem back to Read Only')) {
+    $.ajax({ type: "POST", url: path+"admin/emonpi/fs", data: "argument=ro", async: true, success: function(result)
+      {
+      // console.log(data);
+      }
+    });
+  }
+});
+
 </script>

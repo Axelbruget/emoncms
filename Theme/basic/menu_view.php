@@ -39,6 +39,10 @@
                         }
                     }
                 }
+                
+                $show = true; if (isset($item['hideinactive']) && $item['hideinactive']) $show = false;
+                if (is_active($item)) $show = true;
+                
                 if ($i > 0) {
                     $out .= '<li class="dropdown' . ($subactive ? " active" : "") . (isset($item['class']) ? " ".$item['class'] : "") . '">';
                     $out .= '<a href="#" class="dropdown-toggle" data-toggle="dropdown">' . drawNameIcon($item,false) . '<b class="caret"></b></a>';
@@ -47,7 +51,7 @@
                     $out .= '</ul></li>';
                 }
                 else if (isset($item['path']) && isset($item['name'])) {
-                    $out .= "<li class='" . (is_active($item) ? "active" : "") . (isset($item['class']) ? " ".$item['class'] : "") . "'><a href=\"".$path.$item['path']."\">" . drawNameIcon($item,false) . "</a></li>";
+                    if ($show) $out .= "<li class='" . (is_active($item) ? "active" : "") . (isset($item['class']) ? " ".$item['class'] : "") ."'><a href=\"".$path.$item['path']."\">" . drawNameIcon($item,false) . "</a></li>";
                 }
             }
         } else {
@@ -62,15 +66,17 @@
         $desc = false;
         $icon = false;
         $published = false;
+        $divid = "";
         if (isset($item['name'])) $name = $item['name'];
         if (isset($item['desc'])) $desc = $item['desc'];
         if (isset($item['icon'])) $icon = $item['icon'];
         if (isset($item['published'])) $published = $item['published'];
+        if (isset($item['id'])) $divid = "id='".$item['id']."'";
 
         $title = ($desc ? $desc : $name);
         if($name && $published) $name = "<b>".$name."</b>";
 
-        $out = "<div style='display: inline'>";
+        $out = "<div $divid style='display: inline'>";
         if ($icon) $out .= "<i class='".$icon."'" . ($title ? " title='".$title."'" : "") . "></i>";
         if ($name) {
             if ($alwaysshowname || !$icon) {

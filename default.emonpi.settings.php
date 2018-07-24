@@ -40,7 +40,8 @@
             //Engine::MYSQLMEMORY,   // 8  Mysql with MEMORY tables on RAM. All data is lost on shutdown
             //Engine::PHPTIMESERIES, // 2
             //Engine::PHPFINA,       // 5
-            Engine::PHPFIWA          // 6  PHPFIWA disabled for compatibility with Low-write mode
+            Engine::PHPFIWA,         // 6  PHPFIWA disabled for compatibility with Low-write mode
+            Engine::CASSANDRA        // 10 Apache Cassandra disabled by default for emonpi, enable if you wish to use
         ),
 
         // Redis Low-write mode
@@ -62,16 +63,26 @@
         ),
         'phptimeseries'=>array(
             'datadir' => '/home/pi/data/phptimeseries/'
+        ),
+        'cassandra'=>array(
+            'keyspace' => 'emoncms'
         )
     );
+
+    $homedir = "/home/pi";
 
     // Max number of allowed different inputs per user. For limiting garbage rf data
     $max_node_id_limit = 32;
 
 
 //5 #### User Interface settings
+    // gettext  translations are found under each Module's locale directory
+    $default_language = 'en_GB';
+    
     // Theme location (folder located under Theme/, and must have the same structure as the basic one)
     $theme = "basic";
+    // Theme colour options: "standard", "blue", "sun"
+    $themecolor = "blue";
 
     // Favicon filenme in Theme/$theme
     $favicon = "favicon_emonpi.png";
@@ -92,6 +103,9 @@
 
     // Allow user to reset his password
     $enable_password_reset = false;
+
+    // Email address to email proccessed input values
+    $default_emailto = 'emrys@localhost';
 
     // (OPTIONAL) Email SMTP, used for password reset or other email functions
     $smtp_email_settings = array(
@@ -157,4 +171,11 @@
     $allow_config_env_vars = false;
 
     // Dont change - developer updates this when the config format changes
-    $config_file_version = "9";
+    $config_file_version = "10";
+    
+    // Set to true to run database update without logging in
+    // URL Example: http://localhost/emoncms/admin/db
+    $updatelogin = false;
+
+    // Applicaton name
+    $appname = "emoncms";
